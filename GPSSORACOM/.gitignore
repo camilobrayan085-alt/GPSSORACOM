@@ -6,6 +6,9 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+# Ignorar datos dinámicos
+data/gps.json
+
 
 # ASP.NET
 appsettings.Development.json
