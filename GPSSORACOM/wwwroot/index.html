@@ -61,7 +61,6 @@
 <body>
 
     <div class="container py-5">
-
         <div class="card p-4 fade-in">
 
             <h3 class="mb-3 text-center fw-bold text-primary">
@@ -86,20 +85,20 @@
             </div>
 
             <div id="map"></div>
-
             <div class="text-center mt-3" id="statusTexto"></div>
 
         </div>
     </div>
 
     <script>
-        // Inicializar mapa
+        // Inicializar mapa centrado en México
         var map = L.map('map').setView([19.4326, -99.1332], 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         var marker = null;
         var simActual = null;
 
+        // Función que se ejecuta al presionar el botón
         function buscar() {
             simActual = document.getElementById("simId").value.trim();
             if (!simActual) {
@@ -110,12 +109,14 @@
             actualizarMapa();
         }
 
+        // Función para consultar la ubicación y actualizar el mapa
         function actualizarMapa() {
             let status = document.getElementById("statusTexto");
 
             status.innerHTML = "<span class='text-info fw-semibold'>🔄 Consultando ubicación...</span>";
 
-            fetch(`https://TU_API/api/sim/${simActual}`)
+            // Aquí va la URL de tu API en Render
+            fetch("https://gpssoracom.onrender.com/api/gps/" + simActual)
                 .then(res => {
                     if (!res.ok) throw new Error("SIM no encontrada");
                     return res.json();
@@ -137,7 +138,7 @@
                 });
         }
 
-        // Actualización automática cada 5 segundos
+        // Refresco automático cada 5 segundos
         setInterval(() => {
             if (simActual) {
                 actualizarMapa();
