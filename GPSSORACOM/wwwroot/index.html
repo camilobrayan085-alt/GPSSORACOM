@@ -59,7 +59,6 @@
 </head>
 
 <body>
-
     <div class="container py-5">
         <div class="card p-4 fade-in">
 
@@ -74,7 +73,7 @@
             <div class="row mb-4 justify-content-center">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">ID de la SIM</label>
-                    <input type="text" id="simId" class="form-control" placeholder="Ej. 893407650001234567">
+                    <input type="text" id="simId" class="form-control" placeholder="Ej. 8942310923000264914">
                 </div>
             </div>
 
@@ -98,7 +97,6 @@
         var marker = null;
         var simActual = null;
 
-        // Función que se ejecuta al presionar el botón
         function buscar() {
             simActual = document.getElementById("simId").value.trim();
             if (!simActual) {
@@ -109,10 +107,8 @@
             actualizarMapa();
         }
 
-        // Función para consultar la ubicación y actualizar el mapa
         function actualizarMapa() {
             let status = document.getElementById("statusTexto");
-
             status.innerHTML = "<span class='text-info fw-semibold'>🔄 Consultando ubicación...</span>";
 
             // Aquí va la URL de tu API en Render
@@ -129,8 +125,8 @@
 
                     status.innerHTML =
                         `<span class="text-success fw-semibold">
-                            ✔ Ubicación encontrada (Última actualización: ${data.ultimaActualizacion})
-                        </span>`;
+                                ✔ Ubicación encontrada (Última actualización: ${data.ultimaActualizacion})
+                            </span>`;
                 })
                 .catch(err => {
                     status.innerHTML =
@@ -140,11 +136,8 @@
 
         // Refresco automático cada 5 segundos
         setInterval(() => {
-            if (simActual) {
-                actualizarMapa();
-            }
+            if (simActual) actualizarMapa();
         }, 5000);
     </script>
-
 </body>
 </html>
