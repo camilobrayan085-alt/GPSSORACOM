@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using GPSSORACOM.Models;
 using GPSSORACOM.Services;
+using System.Linq;
 
 namespace GPSSORACOM.Controllers
 {
@@ -15,6 +16,7 @@ namespace GPSSORACOM.Controllers
             _storage = storage;
         }
 
+        // Guardar GPS
         [HttpPost("save")]
         public IActionResult SaveGps([FromBody] GpsModel gps)
         {
@@ -23,11 +25,23 @@ namespace GPSSORACOM.Controllers
             return Ok(new { message = "GPS guardado correctamente." });
         }
 
+        // Listar todos
         [HttpGet("all")]
         public IActionResult GetAllGps()
         {
             var list = _storage.GetAllGps();
             return Ok(list);
+        }
+
+        // Consultar por IMEI específico
+        [HttpGet("{imei}")]
+        public IActionResult GetGpsByImei(string imei)
+        {
+            var list = _storage.GetAllGps();
+            var result = list.Where(g => g.Imei == imei).ToList();
+            if (!result.Any())
+                return NotFound(new { message = "IMEI no encontrado" });
+            return Ok(result);
         }
     }
 }
