@@ -1,5 +1,5 @@
 ﻿using System.Text.Json;
-using GPSSORACOM.Models;   // <-- Importamos tu SimInfo real
+using GPSSORACOM.Models;
 
 namespace GPSSORACOM.Services
 {
@@ -9,7 +9,7 @@ namespace GPSSORACOM.Services
 
         public JsonStorageService(IConfiguration config)
         {
-            // Render SOLO permite escribir en /tmp
+            // Render solo permite escribir en /tmp
             _jsonPath = Path.Combine("/tmp", "gps.json");
 
             if (!File.Exists(_jsonPath))
@@ -18,69 +18,58 @@ namespace GPSSORACOM.Services
             }
         }
 
-        // ===========================================================
-        // ✔ Obtener un registro por SIM
-        // ===========================================================
+        // Obtener un registro por SIM
         public SimInfo? Get(string simId)
         {
-            var all = GetAll();
-            return all.FirstOrDefault(x => x.SimId == simId);
+            return GetAll().FirstOrDefault(x => x.SimId == simId);
         }
 
-        // ===========================================================
-        // ✔ Obtener todos los registros
-        // ===========================================================
+        // Obtener todos los registros
         public List<SimInfo> GetAll()
         {
             if (!File.Exists(_jsonPath)) return new List<SimInfo>();
 
-            var json = File.ReadAllText(_jsonPath);
+            string json = File.ReadAllText(_jsonPath);
 
             return JsonSerializer.Deserialize<List<SimInfo>>(json) ?? new List<SimInfo>();
         }
 
-        // ===========================================================
-        // ✔ Guardar o actualizar registro
-        // ===========================================================
+        // Guardar o actualizar
         public void SaveOrUpdateSim(SimInfo sim)
         {
-            var all = GetAll();
+            var list = GetAll();
 
-            var existing = all.FirstOrDefault(x => x.SimId == sim.SimId);
+            var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
+
             if (existing != null)
             {
+                existing.IMSI = sim.IMSI;
+                existing.IMEI = sim.IMEI;
+                existing.MSISDN = sim.MSISDN;
+
                 existing.Latitude = sim.Latitude;
                 existing.Longitude = sim.Longitude;
                 existing.LastUpdate = sim.LastUpdate;
             }
             else
             {
-                all.Add(sim);
+                list.Add(sim);
             }
 
-            SaveAll(all);
+            SaveAll(list);
         }
 
-        // ===========================================================
-        // ✔ Eliminar registro por SIM
-        // ===========================================================
+        // Eliminar por SIM
         public void Delete(string simId)
         {
-            var all = GetAll();
-            all = all.Where(x => x.SimId != simId).ToList();
-            SaveAll(all);
+            var list = GetAll().Where(x => x.SimId != simId).ToList();
+            SaveAll(list);
         }
 
-        // ===========================================================
-        // ✔ Guardar la lista completa
-        // ===========================================================
+        // Guardar la lista completa
         private void SaveAll(List<SimInfo> all)
         {
-            var json = JsonSerializer.Serialize(all, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
+            var json = JsonSerializer.Serialize(all, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_jsonPath, json);
         }
     }
