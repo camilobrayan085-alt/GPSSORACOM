@@ -34,45 +34,64 @@
     </div>
 
     <script>
-    let map;
+let map;
+let markers = [];
 
-    function buscarUbicacion() {
-        const simId = document.getElementById("simId").value.trim();
-        if (!simId) {
-            alert("Ingresa un SIM ID");
+// Función para limpiar marcadores
+function limpiarMarcadores() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+}
+
+async function buscarUbicacion() {
+    const simId = document.getElementById("simId").value.trim();
+    if (!simId) {
+        alert("Ingresa un SIM ID");
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/gps/${simId}`);
+        if (!resp.ok) {
+            document.getElementById("info").innerText = "❌ No se encontró información para esa SIM.";
             return;
         }
 
-        fetch(`/api/gps/${simId}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => {
-                if (!data) {
-                    document.getElementById("info").innerText =
-                        "❌ No se encontró información para esa SIM.";
-                    return;
-                }
+        const data = await resp.json();
 
-                const { latitude, longitude, lastUpdate } = data;
+        if (!data || data.length === 0) {
+            document.getElementById("info").innerText = "❌ No hay registros de GPS para esta SIM.";
+            return;
+        }
 
-                if (!map) {
-                    map = L.map("map").setView([latitude, longitude], 14);
-                    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-                } else {
-                    map.setView([latitude, longitude], 14);
-                }
+        // Inicializar mapa si no existe
+        if (!map) {
+            const first = data[0];
+            map = L.map("map").setView([first.lat, first.lng], 14);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+        }
 
-                L.marker([latitude, longitude]).addTo(map)
-                    .bindPopup(`SIM: ${simId}<br>Última actualización: ${lastUpdate}`)
-                    .openPopup();
+        limpiarMarcadores();
 
-                document.getElementById("info").innerText =
-                    `Última actualización: ${new Date(lastUpdate).toLocaleString()}`;
-            })
-            .catch(err => {
-                console.error(err);
-                alert("Error consultando la API");
-            });
+        data.forEach(g => {
+            if (g.lat !== undefined && g.lng !== undefined) {
+                const m = L.marker([g.lat, g.lng])
+                    .addTo(map)
+                    .bindPopup(`SIM: ${g.imei}<br>Última actualización: ${new Date(g.timestamp).toLocaleString()}`);
+                markers.push(m);
+            }
+        });
+
+        const last = data[data.length - 1];
+        map.setView([last.lat, last.lng], 14);
+        document.getElementById("info").innerText =
+            `Última actualización: ${new Date(last.timestamp).toLocaleString()}`;
+
+    } catch (err) {
+        console.error(err);
+        alert("Error consultando la API");
     }
+}
     </script>
 
 </body>
