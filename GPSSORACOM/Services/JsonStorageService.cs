@@ -1,60 +1,52 @@
+using System.Text.Json;
 using GPSSORACOM.Models;
-using Newtonsoft.Json;
 
 namespace GPSSORACOM.Services
 {
     public class JsonStorageService
     {
         private readonly string _filePath;
-        private readonly object _lock = new object();
 
         public JsonStorageService(IConfiguration config)
         {
-            // Tomar ruta desde appsettings o usar /tmp/gps.json en Render
-            var pathFromConfig = config["JsonStoragePath"];
-            _filePath = string.IsNullOrWhiteSpace(pathFromConfig) ? "/tmp/gps.json" : Path.GetFullPath(pathFromConfig);
+<<<<<<< HEAD
+            // Obtiene el archivo desde appsettings.json
+            _filePath = config["Storage:GpsFilePath"] ?? "/tmp/gps.json";
+        }
+
+        /// <summary>
+        /// Guarda o actualiza un registro SIM en gps.json
+        /// </summary>
+        public void Save(SimInfo info)
+        {
+            Dictionary<string, SimInfo> data;
+
+            if (File.Exists(_filePath))
+            {
+                var json = File.ReadAllText(_filePath);
+                data = JsonSerializer.Deserialize<Dictionary<string, SimInfo>>(json)
+                       ?? new Dictionary<string, SimInfo>();
+=======
+            // Ruta de almacenamiento en Render (escribible)
+            _filePath = config["JsonStoragePath"] ?? "/tmp/gps.json";
 
             var folder = Path.GetDirectoryName(_filePath)!;
-
-            // Crear carpeta si no es /tmp
-            if (!folder.Equals("/tmp") && !Directory.Exists(folder))
-            {
+            if (!Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
-                Console.WriteLine($"[JsonStorageService] Carpeta creada: {folder}");
-            }
 
-            // Crear archivo si no existe
             if (!File.Exists(_filePath))
-            {
-                try
-                {
-                    File.WriteAllText(_filePath, "[]");
-                    Console.WriteLine($"[JsonStorageService] Archivo JSON creado: {_filePath}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JsonStorageService] Error creando archivo JSON: {ex.Message}");
-                }
-            }
+                File.WriteAllText(_filePath, "[]");
 
             Console.WriteLine($"[JsonStorageService] Guardando GPS en: {_filePath}");
         }
 
-        // Leer todas las SIMs
+        // Leer todas las SIM
         public List<SimInfo> Read()
         {
             lock (_lock)
             {
-                try
-                {
-                    var json = File.ReadAllText(_filePath);
-                    return JsonConvert.DeserializeObject<List<SimInfo>>(json) ?? new List<SimInfo>();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JsonStorageService] Error leyendo {_filePath}: {ex.Message}");
-                    return new List<SimInfo>();
-                }
+                var json = File.ReadAllText(_filePath);
+                return JsonConvert.DeserializeObject<List<SimInfo>>(json) ?? new List<SimInfo>();
             }
         }
 
@@ -63,81 +55,102 @@ namespace GPSSORACOM.Services
         {
             lock (_lock)
             {
-                try
+                var list = Read();
+                var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
+                if (existing != null)
                 {
-                    var list = Read();
-
-                    // Eliminar si ya existe
-                    var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
-                    if (existing != null)
-                        list.Remove(existing);
-
-                    // Asegurar valores por defecto
-                    if (sim.Latitud == null) sim.Latitud = 0;
-                    if (sim.Longitud == null) sim.Longitud = 0;
-                    if (string.IsNullOrEmpty(sim.UltimaActualizacion))
-                        sim.UltimaActualizacion = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-
-                    list.Add(sim);
-
-                    File.WriteAllText(_filePath, JsonConvert.SerializeObject(list, Formatting.Indented));
-                    Console.WriteLine($"[JsonStorageService] SIM {sim.SimId} guardada/actualizada correctamente.");
+                    list.Remove(existing);
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JsonStorageService] Error guardando SIM {sim.SimId}: {ex.Message}");
-                }
+                list.Add(sim);
+
+                File.WriteAllText(_filePath, JsonConvert.SerializeObject(list, Formatting.Indented));
+                Console.WriteLine($"[JsonStorageService] SIM {sim.SimId} guardada/actualizada correctamente.");
+>>>>>>> 8706f75 (Actualizado JsonStorageService con mÃ©todos SaveOrUpdateSim y GetSim)
             }
+            else
+            {
+                data = new Dictionary<string, SimInfo>();
+            }
+
+            // Guardar/actualizar por SimId
+            data[info.SimId] = info;
+
+            var output = JsonSerializer.Serialize(data, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            File.WriteAllText(_filePath, output);
         }
 
+<<<<<<< HEAD
+        /// <summary>
+        /// Obtiene una SIM específica por su ID
+        /// </summary>
+        public SimInfo? Get(string simId)
+        {
+            if (!File.Exists(_filePath))
+                return null;
+
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<Dictionary<string, SimInfo>>(json);
+
+            if (data != null && data.ContainsKey(simId))
+                return data[simId];
+
+            return null;
+        }
+
+        /// <summary>
+        /// Obtiene TODAS las SIM almacenadas
+        /// </summary>
+        public Dictionary<string, SimInfo> GetAll()
+        {
+            if (!File.Exists(_filePath))
+                return new Dictionary<string, SimInfo>();
+
+            var json = File.ReadAllText(_filePath);
+
+            var data = JsonSerializer.Deserialize<Dictionary<string, SimInfo>>(json);
+
+            if (data == null)
+                return new Dictionary<string, SimInfo>();
+
+            return data;
+        }
+
+        /// <summary>
+        /// Elimina una SIM del archivo
+        /// </summary>
+        public bool Delete(string simId)
+        {
+            if (!File.Exists(_filePath))
+                return false;
+
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<Dictionary<string, SimInfo>>(json);
+
+            if (data == null || !data.ContainsKey(simId))
+                return false;
+
+            data.Remove(simId);
+
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(data, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+
+            return true;
+=======
         // Obtener una SIM por ID
         public SimInfo? GetSim(string simId)
         {
             lock (_lock)
             {
-                try
-                {
-                    var list = Read();
-                    return list.FirstOrDefault(x => x.SimId == simId);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JsonStorageService] Error obteniendo SIM {simId}: {ex.Message}");
-                    return null;
-                }
+                var list = Read();
+                return list.FirstOrDefault(x => x.SimId == simId);
             }
-        }
-
-        // Guardar múltiples SIMs (opcional)
-        public void SaveOrUpdateSims(List<SimInfo> sims)
-        {
-            lock (_lock)
-            {
-                try
-                {
-                    var list = Read();
-
-                    foreach (var sim in sims)
-                    {
-                        var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
-                        if (existing != null) list.Remove(existing);
-
-                        if (sim.Latitud == null) sim.Latitud = 0;
-                        if (sim.Longitud == null) sim.Longitud = 0;
-                        if (string.IsNullOrEmpty(sim.UltimaActualizacion))
-                            sim.UltimaActualizacion = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-
-                        list.Add(sim);
-                    }
-
-                    File.WriteAllText(_filePath, JsonConvert.SerializeObject(list, Formatting.Indented));
-                    Console.WriteLine($"[JsonStorageService] {sims.Count} SIMs guardadas/actualizadas correctamente.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JsonStorageService] Error guardando múltiples SIMs: {ex.Message}");
-                }
-            }
+>>>>>>> 8706f75 (Actualizado JsonStorageService con mÃ©todos SaveOrUpdateSim y GetSim)
         }
     }
 }

@@ -4,8 +4,8 @@ using GPSSORACOM.Services;
 
 namespace GPSSORACOM.Controllers
 {
+    [Route("api/[controller]")]
     [ApiController]
-    [Route("api/gps")]
     public class GpsController : ControllerBase
     {
         private readonly JsonStorageService _storage;
@@ -15,70 +15,42 @@ namespace GPSSORACOM.Controllers
             _storage = storage;
         }
 
-        // POST: Recibe datos de Soracom Beam
         [HttpPost]
-        public IActionResult ReceiveGps([FromBody] SimInfo data)
+        public IActionResult ReceiveGps([FromBody] SimInfo model)
         {
-            string simId = Request.Headers["x-soracom-sim-id"];
-            string imsi = Request.Headers["x-soracom-imsi"];
-            string imei = Request.Headers["x-soracom-imei"];
-            string msisdn = Request.Headers["x-soracom-msisdn"];
+            try
+            {
+                // Headers enviados por Soracom Beam
+                model.SimId = Request.Headers["X-Soracom-Sim-Id"].ToString();
+                model.IMSI = Request.Headers["X-Soracom-IMSI"].ToString();
+                model.IMEI = Request.Headers["X-Soracom-IMEI"].ToString();
+                model.MSISDN = Request.Headers["X-Soracom-MSISDN"].ToString();
 
-            if (string.IsNullOrEmpty(simId))
-                return BadRequest(new { status = "error", message = "No se recibió SIM ID" });
+                if (string.IsNullOrEmpty(model.SimId))
+                    return BadRequest(new { message = "No se recibió SIM ID desde Soracom" });
 
-            if (data == null) data = new SimInfo();
+                model.LastUpdate = DateTime.UtcNow;
 
-            data.SimId = simId;
-            data.IMSI = imsi;
-            data.IMEI = imei;
-            data.MSISDN = msisdn;
-            data.Latitud ??= 0;
-            data.Longitud ??= 0;
-            data.UltimaActualizacion = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                _storage.Save(model);
 
-            _storage.SaveOrUpdateSim(data);
-
-            return Ok(new { status = "ok", saved = true });
+                return Ok(new { message = "Datos GPS guardados correctamente", sim = model.SimId });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
 
-        // GET: Obtiene ubicación de una SIM específica
+        // Leer datos del GPS desde gps.json
         [HttpGet("{simId}")]
-        public IActionResult GetSim(string simId)
+        public IActionResult GetGps(string simId)
         {
-            var sim = _storage.GetSim(simId);
+            var data = _storage.Get(simId);
 
-            if (sim == null)
-                return NotFound(new { status = "error", message = "SIM no encontrada" });
+            if (data == null)
+                return NotFound(new { message = "No se encontraron datos para esta SIM" });
 
-            // Retornar valores aunque Lat/Lon sean 0
-            return Ok(new
-            {
-                sim.SimId,
-                sim.IMSI,
-                sim.IMEI,
-                sim.MSISDN,
-                latitud = sim.Latitud,
-                longitud = sim.Longitud,
-                ultimaActualizacion = sim.UltimaActualizacion
-            });
-        }
-
-        // GET: Obtiene todas las SIMs almacenadas
-        [HttpGet]
-        public IActionResult GetAll()
-        {
-            var allSims = _storage.Read();
-            return Ok(allSims.Select(sim => new
-            {
-                sim.SimId,
-                sim.IMSI,
-                sim.IMEI,
-                sim.MSISDN,
-                latitud = sim.Latitud,
-                longitud = sim.Longitud,
-                ultimaActualizacion = sim.UltimaActualizacion
-            }));
+            return Ok(data);
         }
     }
 }
