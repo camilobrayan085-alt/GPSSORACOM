@@ -22,5 +22,12 @@ namespace GPSSORACOM.Controllers
             _storage.SaveSim(sim);
             return Ok(new { message = "SIM actualizado correctamente." });
         }
+
+        [HttpGet("all")]
+        public IActionResult GetAllSims()
+        {
+            var list = _storage.GetAllSims();
+            return Ok(list);
+        }
     }
 }

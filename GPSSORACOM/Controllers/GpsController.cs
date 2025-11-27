@@ -22,5 +22,12 @@ namespace GPSSORACOM.Controllers
             _storage.SaveGps(gps);
             return Ok(new { message = "GPS guardado correctamente." });
         }
+
+        [HttpGet("all")]
+        public IActionResult GetAllGps()
+        {
+            var list = _storage.GetAllGps();
+            return Ok(list);
+        }
     }
 }

@@ -1,32 +1,55 @@
-﻿using System.Text.Json;
-using GPSSORACOM.Models;
+﻿using GPSSORACOM.Models;
+using System.Text.Json;
 
 namespace GPSSORACOM.Services
 {
     public class JsonStorageService
     {
-        private readonly string simPath = "sim_data.json";
-        private readonly string gpsPath = "gps_data.json";
+        private readonly string gpsFile = "gps_data.json";
+        private readonly string simFile = "sim_data.json";
+        private readonly object fileLock = new object();
 
-        public void SaveSim(SimInfo sim)
-        {
-            List<SimInfo> sims = Load<SimInfo>(simPath);
-            sims.RemoveAll(x => x.SimId == sim.SimId);
-            sims.Add(sim);
-            File.WriteAllText(simPath, JsonSerializer.Serialize(sims));
-        }
-
+        // --- GPS ---
         public void SaveGps(GpsModel gps)
         {
-            List<GpsModel> data = Load<GpsModel>(gpsPath);
-            data.Add(gps);
-            File.WriteAllText(gpsPath, JsonSerializer.Serialize(data));
+            lock (fileLock)
+            {
+                List<GpsModel> list = File.Exists(gpsFile)
+                    ? JsonSerializer.Deserialize<List<GpsModel>>(File.ReadAllText(gpsFile)) ?? new List<GpsModel>()
+                    : new List<GpsModel>();
+
+                list.Add(gps);
+                File.WriteAllText(gpsFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+            }
         }
 
-        public List<T> Load<T>(string path)
+        public List<GpsModel> GetAllGps()
         {
-            if (!File.Exists(path)) return new List<T>();
-            return JsonSerializer.Deserialize<List<T>>(File.ReadAllText(path)) ?? new List<T>();
+            if (!File.Exists(gpsFile)) return new List<GpsModel>();
+            return JsonSerializer.Deserialize<List<GpsModel>>(File.ReadAllText(gpsFile)) ?? new List<GpsModel>();
+        }
+
+        // --- SIM ---
+        public void SaveSim(SimInfo sim)
+        {
+            lock (fileLock)
+            {
+                List<SimInfo> list = File.Exists(simFile)
+                    ? JsonSerializer.Deserialize<List<SimInfo>>(File.ReadAllText(simFile)) ?? new List<SimInfo>()
+                    : new List<SimInfo>();
+
+                var existing = list.FirstOrDefault(s => s.Imei == sim.Imei);
+                if (existing != null) list.Remove(existing);
+
+                list.Add(sim);
+                File.WriteAllText(simFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+            }
+        }
+
+        public List<SimInfo> GetAllSims()
+        {
+            if (!File.Exists(simFile)) return new List<SimInfo>();
+            return JsonSerializer.Deserialize<List<SimInfo>>(File.ReadAllText(simFile)) ?? new List<SimInfo>();
         }
     }
 }

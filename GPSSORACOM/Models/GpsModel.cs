@@ -2,9 +2,12 @@
 {
     public class GpsModel
     {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
+        public string Imei { get; set; }
+        public double Lat { get; set; }
+        public double Lng { get; set; }
+        public double? Accuracy { get; set; }
+        public double? Speed { get; set; }
+        public double? Heading { get; set; }
         public DateTime Timestamp { get; set; }
-        public string? DeviceId { get; set; }
     }
 }
