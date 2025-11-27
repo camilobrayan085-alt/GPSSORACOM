@@ -1,64 +1,87 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using GPSSORACOM.Models;   // <-- Importamos tu SimInfo real
 
 namespace GPSSORACOM.Services
 {
     public class JsonStorageService
     {
-        private readonly string _filePath;
+        private readonly string _jsonPath;
 
         public JsonStorageService(IConfiguration config)
         {
-            var storageFolder = "/tmp";
-            _filePath = Path.Combine(storageFolder, "gps.json");
+            // Render SOLO permite escribir en /tmp
+            _jsonPath = Path.Combine("/tmp", "gps.json");
 
-            if (!Directory.Exists(storageFolder))
-                Directory.CreateDirectory(storageFolder);
-
-            if (!File.Exists(_filePath))
-                File.WriteAllText(_filePath, "[]");
-        }
-
-        public List<dynamic> Load()
-        {
-            try
+            if (!File.Exists(_jsonPath))
             {
-                if (!File.Exists(_filePath))
-                    return new List<dynamic>();
-
-                var content = File.ReadAllText(_filePath);
-                if (string.IsNullOrWhiteSpace(content))
-                    return new List<dynamic>();
-
-                return JsonSerializer.Deserialize<List<dynamic>>(content) ?? new List<dynamic>();
-            }
-            catch
-            {
-                return new List<dynamic>();
+                File.WriteAllText(_jsonPath, "[]");
             }
         }
 
-        public void SaveOrUpdateSim(string simId, double lat, double lng)
+        // ===========================================================
+        // ✔ Obtener un registro por SIM
+        // ===========================================================
+        public SimInfo? Get(string simId)
         {
-            var list = Load();
+            var all = GetAll();
+            return all.FirstOrDefault(x => x.SimId == simId);
+        }
 
-            var existing = list.FirstOrDefault(x => x.simId == simId);
+        // ===========================================================
+        // ✔ Obtener todos los registros
+        // ===========================================================
+        public List<SimInfo> GetAll()
+        {
+            if (!File.Exists(_jsonPath)) return new List<SimInfo>();
+
+            var json = File.ReadAllText(_jsonPath);
+
+            return JsonSerializer.Deserialize<List<SimInfo>>(json) ?? new List<SimInfo>();
+        }
+
+        // ===========================================================
+        // ✔ Guardar o actualizar registro
+        // ===========================================================
+        public void SaveOrUpdateSim(SimInfo sim)
+        {
+            var all = GetAll();
+
+            var existing = all.FirstOrDefault(x => x.SimId == sim.SimId);
             if (existing != null)
-                list.Remove(existing);
-
-            list.Add(new
             {
-                simId = simId,
-                Latitud = lat,
-                Longitud = lng,
-                UltimaActualizacion = DateTime.UtcNow
+                existing.Latitude = sim.Latitude;
+                existing.Longitude = sim.Longitude;
+                existing.LastUpdate = sim.LastUpdate;
+            }
+            else
+            {
+                all.Add(sim);
+            }
+
+            SaveAll(all);
+        }
+
+        // ===========================================================
+        // ✔ Eliminar registro por SIM
+        // ===========================================================
+        public void Delete(string simId)
+        {
+            var all = GetAll();
+            all = all.Where(x => x.SimId != simId).ToList();
+            SaveAll(all);
+        }
+
+        // ===========================================================
+        // ✔ Guardar la lista completa
+        // ===========================================================
+        private void SaveAll(List<SimInfo> all)
+        {
+            var json = JsonSerializer.Serialize(all, new JsonSerializerOptions
+            {
+                WriteIndented = true
             });
 
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
-        }
-
-        public dynamic GetSim(string simId)
-        {
-            return Load().FirstOrDefault(x => x.simId == simId);
+            File.WriteAllText(_jsonPath, json);
         }
     }
 }
