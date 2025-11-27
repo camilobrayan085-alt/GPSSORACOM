@@ -4,44 +4,23 @@ using GPSSORACOM.Services;
 
 namespace GPSSORACOM.Controllers
 {
-    [Route("api/gps")]
     [ApiController]
+    [Route("api/gps")]
     public class GpsController : ControllerBase
     {
-        private readonly JsonStorageService _json;
+        private readonly JsonStorageService _storage;
 
-        public GpsController(JsonStorageService json)
+        public GpsController(JsonStorageService storage)
         {
-            _json = json;
+            _storage = storage;
         }
 
-        // POST api/gps/update
-        [HttpPost("update")]
-        public IActionResult Update([FromBody] SimInfo data)
+        [HttpPost("save")]
+        public IActionResult SaveGps([FromBody] GpsModel gps)
         {
-            if (data == null || string.IsNullOrEmpty(data.SimId))
-                return BadRequest("SimId requerido");
-
-            _json.SaveOrUpdateSim(data);
-
-            return Ok(new { message = "GPS actualizado", sim = data });
-        }
-
-        // GET api/gps/all
-        [HttpGet("all")]
-        public IActionResult GetAll()
-        {
-            return Ok(_json.GetAll());
-        }
-
-        // GET api/gps/{simId}
-        [HttpGet("{simId}")]
-        public IActionResult Get(string simId)
-        {
-            var sim = _json.Get(simId);
-            if (sim == null) return NotFound("SIM no encontrada");
-
-            return Ok(sim);
+            gps.Timestamp = DateTime.Now;
+            _storage.SaveGps(gps);
+            return Ok(new { message = "GPS guardado correctamente." });
         }
     }
 }

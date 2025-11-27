@@ -2,11 +2,9 @@ using GPSSORACOM.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Render usa el puerto 10000
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.ListenAnyIP(10000);
-});
+// Render asigna puerto dinámico
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 builder.Services.AddControllers();
 builder.Services.AddSingleton<JsonStorageService>();

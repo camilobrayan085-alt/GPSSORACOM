@@ -5,72 +5,28 @@ namespace GPSSORACOM.Services
 {
     public class JsonStorageService
     {
-        private readonly string _jsonPath;
+        private readonly string simPath = "sim_data.json";
+        private readonly string gpsPath = "gps_data.json";
 
-        public JsonStorageService(IConfiguration config)
+        public void SaveSim(SimInfo sim)
         {
-            // Render solo permite escribir en /tmp
-            _jsonPath = Path.Combine("/tmp", "gps.json");
-
-            if (!File.Exists(_jsonPath))
-            {
-                File.WriteAllText(_jsonPath, "[]");
-            }
+            List<SimInfo> sims = Load<SimInfo>(simPath);
+            sims.RemoveAll(x => x.SimId == sim.SimId);
+            sims.Add(sim);
+            File.WriteAllText(simPath, JsonSerializer.Serialize(sims));
         }
 
-        // Obtener un registro por SIM
-        public SimInfo? Get(string simId)
+        public void SaveGps(GpsModel gps)
         {
-            return GetAll().FirstOrDefault(x => x.SimId == simId);
+            List<GpsModel> data = Load<GpsModel>(gpsPath);
+            data.Add(gps);
+            File.WriteAllText(gpsPath, JsonSerializer.Serialize(data));
         }
 
-        // Obtener todos los registros
-        public List<SimInfo> GetAll()
+        public List<T> Load<T>(string path)
         {
-            if (!File.Exists(_jsonPath)) return new List<SimInfo>();
-
-            string json = File.ReadAllText(_jsonPath);
-
-            return JsonSerializer.Deserialize<List<SimInfo>>(json) ?? new List<SimInfo>();
-        }
-
-        // Guardar o actualizar
-        public void SaveOrUpdateSim(SimInfo sim)
-        {
-            var list = GetAll();
-
-            var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
-
-            if (existing != null)
-            {
-                existing.IMSI = sim.IMSI;
-                existing.IMEI = sim.IMEI;
-                existing.MSISDN = sim.MSISDN;
-
-                existing.Latitude = sim.Latitude;
-                existing.Longitude = sim.Longitude;
-                existing.LastUpdate = sim.LastUpdate;
-            }
-            else
-            {
-                list.Add(sim);
-            }
-
-            SaveAll(list);
-        }
-
-        // Eliminar por SIM
-        public void Delete(string simId)
-        {
-            var list = GetAll().Where(x => x.SimId != simId).ToList();
-            SaveAll(list);
-        }
-
-        // Guardar la lista completa
-        private void SaveAll(List<SimInfo> all)
-        {
-            var json = JsonSerializer.Serialize(all, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_jsonPath, json);
+            if (!File.Exists(path)) return new List<T>();
+            return JsonSerializer.Deserialize<List<T>>(File.ReadAllText(path)) ?? new List<T>();
         }
     }
 }
