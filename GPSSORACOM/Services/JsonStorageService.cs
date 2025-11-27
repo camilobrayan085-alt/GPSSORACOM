@@ -10,15 +10,32 @@ namespace GPSSORACOM.Services
 
         public JsonStorageService(IConfiguration config)
         {
-            // Ruta de almacenamiento en Render (escribible)
-            _filePath = config["JsonStoragePath"] ?? "/tmp/gps.json";
+            // Si viene vacío o NULL, se usa /tmp/gps.json (Render)
+            var pathFromConfig = config["JsonStoragePath"];
+
+            if (string.IsNullOrWhiteSpace(pathFromConfig))
+            {
+                _filePath = "/tmp/gps.json";   // Render
+            }
+            else
+            {
+                // Normaliza ruta local (appsettings)
+                _filePath = Path.GetFullPath(pathFromConfig);
+            }
 
             var folder = Path.GetDirectoryName(_filePath)!;
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
 
+            // Crear carpeta solo si no es /tmp
+            if (!folder.Equals("/tmp") && !Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            // Crear archivo si no existe
             if (!File.Exists(_filePath))
+            {
                 File.WriteAllText(_filePath, "[]");
+            }
 
             Console.WriteLine($"[JsonStorageService] Guardando GPS en: {_filePath}");
         }
@@ -40,10 +57,12 @@ namespace GPSSORACOM.Services
             {
                 var list = Read();
                 var existing = list.FirstOrDefault(x => x.SimId == sim.SimId);
+
                 if (existing != null)
                 {
                     list.Remove(existing);
                 }
+
                 list.Add(sim);
 
                 File.WriteAllText(_filePath, JsonConvert.SerializeObject(list, Formatting.Indented));

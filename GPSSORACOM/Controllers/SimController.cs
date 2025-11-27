@@ -1,67 +1,51 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
 using GPSSORACOM.Models;
+using GPSSORACOM.Services;
 
-namespace MiApi.Controllers
+namespace GPSSORACOM.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/sim")]
     public class SimController : ControllerBase
     {
-        private readonly string filePath = "App_Data/sims.json";
+        private readonly JsonStorageService _storage;
 
-        // ============
+        public SimController(JsonStorageService storage)
+        {
+            _storage = storage;
+        }
+
         // GET: api/sim/{simId}
-        // ============
         [HttpGet("{simId}")]
         public IActionResult GetSimLocation(string simId)
         {
-            var sims = LeerJson();
-
-            var sim = sims.FirstOrDefault(s => s.SimId == simId);
-
+            var sim = _storage.GetSim(simId);
             if (sim == null)
                 return NotFound(new { message = "SIM no encontrada" });
 
             return Ok(sim);
         }
 
-        // ============
         // PUT: api/sim/update
-        // ============
         [HttpPut("update")]
         public IActionResult UpdateSim([FromBody] SimInfo update)
         {
-            var sims = LeerJson();
+            if (update == null || string.IsNullOrEmpty(update.SimId))
+                return BadRequest(new { message = "Datos inválidos" });
 
-            var sim = sims.FirstOrDefault(s => s.SimId == update.SimId);
+            update.UltimaActualizacion = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
-            if (sim == null)
-            {
-                sims.Add(update);
-            }
-            else
-            {
-                sim.Latitud = update.Latitud;
-                sim.Longitud = update.Longitud;
-                sim.UltimaActualizacion = DateTime.Now;
-            }
-
-            System.IO.File.WriteAllText(filePath, JsonConvert.SerializeObject(sims, Formatting.Indented));
+            _storage.SaveOrUpdateSim(update);
 
             return Ok(new { message = "SIM actualizada correctamente" });
         }
 
-        // ============
-        // Función para leer JSON
-        // ============
-        private List<SimInfo> LeerJson()
+        // GET: api/sim
+        [HttpGet]
+        public IActionResult GetAll()
         {
-            if (!System.IO.File.Exists(filePath))
-                return new List<SimInfo>();
-
-            var json = System.IO.File.ReadAllText(filePath);
-            return JsonConvert.DeserializeObject<List<SimInfo>>(json) ?? new List<SimInfo>();
+            var allSims = _storage.Read();
+            return Ok(allSims);
         }
     }
 }

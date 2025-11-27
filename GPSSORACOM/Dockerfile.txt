@@ -1,0 +1,22 @@
+﻿# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /app
+
+# Copiar solución y proyecto
+COPY GPSSORACOM.sln .
+COPY GPSSORACOM/ ./GPSSORACOM/
+
+# Restaurar paquetes
+RUN dotnet restore GPSSORACOM/GPSSORACOM.csproj
+
+# Publicar en modo Release
+RUN dotnet publish GPSSORACOM/GPSSORACOM.csproj -c Release -o /out
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /out .
+
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "GPSSORACOM.dll"]
