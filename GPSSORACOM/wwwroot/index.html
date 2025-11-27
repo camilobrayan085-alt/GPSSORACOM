@@ -61,14 +61,8 @@
 <body>
     <div class="container py-5">
         <div class="card p-4 fade-in">
-
-            <h3 class="mb-3 text-center fw-bold text-primary">
-                🛰️ Localización en Tiempo Real - SIM
-            </h3>
-
-            <p class="text-center text-muted mb-4">
-                Consulta la ubicación actual de cualquier SIM utilizando el servicio Web API.
-            </p>
+            <h3 class="mb-3 text-center fw-bold text-primary">🛰️ Localización en Tiempo Real - SIM</h3>
+            <p class="text-center text-muted mb-4">Consulta la ubicación actual de cualquier SIM.</p>
 
             <div class="row mb-4 justify-content-center">
                 <div class="col-md-6">
@@ -85,12 +79,10 @@
 
             <div id="map"></div>
             <div class="text-center mt-3" id="statusTexto"></div>
-
         </div>
     </div>
 
     <script>
-        // Inicializar mapa centrado en México
         var map = L.map('map').setView([19.4326, -99.1332], 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -111,30 +103,34 @@
             let status = document.getElementById("statusTexto");
             status.innerHTML = "<span class='text-info fw-semibold'>🔄 Consultando ubicación...</span>";
 
-            // Aquí va la URL de tu API en Render
             fetch("https://gpssoracom.onrender.com/api/gps/" + simActual)
                 .then(res => {
                     if (!res.ok) throw new Error("SIM no encontrada");
                     return res.json();
                 })
                 .then(data => {
+                    // Campos exactos de tu GpsController
+                    const lat = data.Latitud;
+                    const lng = data.Longitud;
+
+                    if (lat == 0 && lng == 0) throw new Error("Ubicación no disponible");
+
                     if (marker) map.removeLayer(marker);
 
-                    marker = L.marker([data.latitud, data.longitud]).addTo(map);
-                    map.setView([data.latitud, data.longitud], 14);
+                    marker = L.marker([lat, lng]).addTo(map);
+                    map.setView([lat, lng], 14);
 
                     status.innerHTML =
                         `<span class="text-success fw-semibold">
-                                ✔ Ubicación encontrada (Última actualización: ${data.ultimaActualizacion})
-                            </span>`;
+                            ✔ Ubicación encontrada (Última actualización: ${data.UltimaActualizacion})
+                        </span>`;
                 })
                 .catch(err => {
                     status.innerHTML =
-                        "<span class='text-danger fw-semibold'>❌ SIM no encontrada en el sistema.</span>";
+                        "<span class='text-danger fw-semibold'>❌ SIM no encontrada o ubicación no disponible.</span>";
                 });
         }
 
-        // Refresco automático cada 5 segundos
         setInterval(() => {
             if (simActual) actualizarMapa();
         }, 5000);
