@@ -16,16 +16,16 @@ namespace GPSSORACOM.Controllers
             _storage = storage;
         }
 
-        // Guardar GPS
+        // Guardar GPS (Beam enviará datos aquí)
         [HttpPost("save")]
         public IActionResult SaveGps([FromBody] GpsModel gps)
         {
-            gps.Timestamp = DateTime.Now;
+            gps.Timestamp = DateTime.UtcNow;
             _storage.SaveGps(gps);
             return Ok(new { message = "GPS guardado correctamente." });
         }
 
-        // Listar todos
+        // Listar todos los GPS
         [HttpGet("all")]
         public IActionResult GetAllGps()
         {

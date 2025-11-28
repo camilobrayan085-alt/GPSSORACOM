@@ -1,55 +1,87 @@
 ﻿using GPSSORACOM.Models;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace GPSSORACOM.Services
 {
     public class JsonStorageService
     {
-        private readonly string gpsFile = "gps_data.json";
-        private readonly string simFile = "sim_data.json";
-        private readonly object fileLock = new object();
+        private readonly string _filePath;
+        private readonly object _lock = new object();
 
-        // --- GPS ---
+        public JsonStorageService(IConfiguration config)
+        {
+            // Tomar ruta desde appsettings o usar /tmp/gps.json en Render
+            var pathFromConfig = config["JsonStoragePath"];
+            _filePath = string.IsNullOrWhiteSpace(pathFromConfig) ? "/tmp/gps.json" : Path.GetFullPath(pathFromConfig);
+
+            var folder = Path.GetDirectoryName(_filePath)!;
+
+            // Crear carpeta si no es /tmp
+            if (!folder.Equals("/tmp") && !Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+                Console.WriteLine($"[JsonStorageService] Carpeta creada: {folder}");
+            }
+
+            // Crear archivo si no existe
+            if (!File.Exists(_filePath))
+            {
+                try
+                {
+                    File.WriteAllText(_filePath, "[]");
+                    Console.WriteLine($"[JsonStorageService] Archivo JSON creado: {_filePath}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[JsonStorageService] Error creando archivo JSON: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine($"[JsonStorageService] Guardando GPS en: {_filePath}");
+        }
+
+        // Guardar un GPS
         public void SaveGps(GpsModel gps)
         {
-            lock (fileLock)
+            lock (_lock)
             {
-                List<GpsModel> list = File.Exists(gpsFile)
-                    ? JsonSerializer.Deserialize<List<GpsModel>>(File.ReadAllText(gpsFile)) ?? new List<GpsModel>()
-                    : new List<GpsModel>();
-
-                list.Add(gps);
-                File.WriteAllText(gpsFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+                try
+                {
+                    var list = GetAllGps() ?? new List<GpsModel>();
+                    list.Add(gps);
+                    File.WriteAllText(_filePath, JsonConvert.SerializeObject(list, Formatting.Indented));
+                    Console.WriteLine($"[JsonStorageService] GPS guardado: {gps.Imei} → {gps.Lat},{gps.Lng}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[JsonStorageService] Error guardando GPS: {ex.Message}");
+                }
             }
         }
 
+        // Obtener todos los GPS
         public List<GpsModel> GetAllGps()
         {
-            if (!File.Exists(gpsFile)) return new List<GpsModel>();
-            return JsonSerializer.Deserialize<List<GpsModel>>(File.ReadAllText(gpsFile)) ?? new List<GpsModel>();
-        }
-
-        // --- SIM ---
-        public void SaveSim(SimInfo sim)
-        {
-            lock (fileLock)
+            lock (_lock)
             {
-                List<SimInfo> list = File.Exists(simFile)
-                    ? JsonSerializer.Deserialize<List<SimInfo>>(File.ReadAllText(simFile)) ?? new List<SimInfo>()
-                    : new List<SimInfo>();
-
-                var existing = list.FirstOrDefault(s => s.Imei == sim.Imei);
-                if (existing != null) list.Remove(existing);
-
-                list.Add(sim);
-                File.WriteAllText(simFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+                try
+                {
+                    var json = File.ReadAllText(_filePath);
+                    return JsonConvert.DeserializeObject<List<GpsModel>>(json) ?? new List<GpsModel>();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[JsonStorageService] Error leyendo {_filePath}: {ex.Message}");
+                    return new List<GpsModel>();
+                }
             }
         }
 
-        public List<SimInfo> GetAllSims()
+        // Obtener GPS por IMEI específico
+        public List<GpsModel> GetGpsByImei(string imei)
         {
-            if (!File.Exists(simFile)) return new List<SimInfo>();
-            return JsonSerializer.Deserialize<List<SimInfo>>(File.ReadAllText(simFile)) ?? new List<SimInfo>();
+            var all = GetAllGps();
+            return all.Where(g => g.Imei == imei).ToList();
         }
     }
 }
