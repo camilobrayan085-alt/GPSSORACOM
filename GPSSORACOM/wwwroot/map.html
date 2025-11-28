@@ -22,67 +22,26 @@
             background: #f4f7fb;
             font-family: "Inter", "Segoe UI", Arial, sans-serif;
         }
-
         .topbar {
             background: #fff;
             padding: 12px 18px;
             border-bottom: 1px solid #e9ecef;
             box-shadow: 0 2px 8px rgba(10,20,40,0.03);
         }
-
         .panel {
             background: #fff;
             border-radius: 10px;
             padding: 12px;
             box-shadow: 0 6px 24px rgba(10,20,40,0.06);
         }
-
-        #map {
-            height: calc(100vh - 140px);
-            border-radius: 10px;
-        }
-
-        .sidebar {
-            height: calc(100vh - 140px);
-            overflow: auto;
-        }
-
-        .sim-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            border-bottom: 1px dashed #eee;
-            cursor: pointer;
-        }
-
-            .sim-item:hover {
-                background: #f8f9fb;
-            }
-
-        .color-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        }
-
-        .status-badge {
-            font-size: 0.72rem;
-            padding: .25rem .5rem;
-            border-radius: 999px;
-        }
-
-        .muted {
-            color: #6c757d;
-        }
-
-        .small-muted {
-            font-size: 0.85rem;
-            color: #6c757d;
-        }
+        #map { height: calc(100vh - 140px); border-radius: 10px; }
+        .sidebar { height: calc(100vh - 140px); overflow: auto; }
+        .sim-item { display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px dashed #eee; cursor:pointer; }
+        .sim-item:hover { background:#f8f9fb; }
+        .color-dot { width:14px; height:14px; border-radius:50%; display:inline-block; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,0.15); }
+        .status-badge { font-size: 0.72rem; padding: .25rem .5rem; border-radius: 999px; }
+        .muted { color:#6c757d; }
+        .small-muted { font-size:0.85rem; color:#6c757d; }
     </style>
 </head>
 <body>
@@ -143,309 +102,309 @@
         </div>
     </div>
 
-    <script>
-        /*
-          Actualización: Estados del vehículo
-          - Se calculan estados por punto y se muestran en la lista y en popups
-          - Umbrales modificables abajo
-        */
+<script>
+/*
+  Actualización: Estados del vehículo
+  - Se calculan estados por punto y se muestran en la lista y en popups
+  - Umbrales modificables abajo
+*/
 
-        // Config
-        const API_ALL = "/api/gps/all";
-        const API_IMEI = "/api/gps/"; // + imei
+// Config
+const API_ALL = "/api/gps/all";
+const API_IMEI = "/api/gps/"; // + imei
 
-        // Umbrales (ajústalos según tu necesidad)
-        const SPEED_MOVE_THRESHOLD = 5;      // km/h -> para considerar "en movimiento"
-        const SPEED_OVERSPEED = 80;          // km/h -> exceso de velocidad
-        const STOP_LONG_SECONDS = 10 * 60;   // segundos -> 10 minutos para "excesiva detención"
-        const BATTERY_LOW_PERCENT = 20;      // % -> batería baja
+// Umbrales (ajústalos según tu necesidad)
+const SPEED_MOVE_THRESHOLD = 5;      // km/h -> para considerar "en movimiento"
+const SPEED_OVERSPEED = 80;          // km/h -> exceso de velocidad
+const STOP_LONG_SECONDS = 10 * 60;   // segundos -> 10 minutos para "excesiva detención"
+const BATTERY_LOW_PERCENT = 20;      // % -> batería baja
 
-        // Mapa
-        const map = L.map("map", { zoomControl: true }).setView([19.4326, -99.1332], 5);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-        const markerCluster = L.markerClusterGroup();
-        map.addLayer(markerCluster);
+// Mapa
+const map = L.map("map", { zoomControl: true }).setView([19.4326, -99.1332], 5);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+const markerCluster = L.markerClusterGroup();
+map.addLayer(markerCluster);
 
-        // Estado global
-        let rawData = [];
-        let grouped = {};
-        let deviceColors = {};
-        let deviceLayers = {};
+// Estado global
+let rawData = [];
+let grouped = {};
+let deviceColors = {};
+let deviceLayers = {};
 
-        // util: color by imei hash
-        function hashToColor(str) {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-            return "#" + "00000".substring(0, 6 - c.length) + c;
-        }
+// util: color by imei hash
+function hashToColor(str) {
+    let hash = 0;
+    for (let i=0;i<str.length;i++) hash = str.charCodeAt(i) + ((hash<<5)-hash);
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return "#" + "00000".substring(0,6-c.length) + c;
+}
 
-        // icons según estado
-        function createStateIcon(state, baseColor, size = 36) {
-            // state: "moving","stopped","overspeed","off","battery_low"
-            // escoger color por estado si quieres overriding
-            let color = baseColor;
-            if (state === "moving") color = "#4bbf73";
-            else if (state === "stopped") color = "#f0ad4e";
-            else if (state === "overspeed") color = "#f03b20";
-            else if (state === "off") color = "#6c757d";
-            else if (state === "battery_low") color = "#ffd700";
+// icons según estado
+function createStateIcon(state, baseColor, size=36) {
+    // state: "moving","stopped","overspeed","off","battery_low"
+    // escoger color por estado si quieres overriding
+    let color = baseColor;
+    if (state === "moving") color = "#4bbf73";
+    else if (state === "stopped") color = "#f0ad4e";
+    else if (state === "overspeed") color = "#f03b20";
+    else if (state === "off") color = "#6c757d";
+    else if (state === "battery_low") color = "#ffd700";
 
-            const svg = encodeURIComponent(`
-          <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24'>
-            <path d='M12 2C8 2 6 5 6 8.5 6 13 12 22 12 22s6-9 6-13.5C18 5 16 2 12 2z' fill='${color}' stroke='#ffffff' stroke-width='1'/>
-            <circle cx='12' cy='8.5' r='2.5' fill='#fff'/>
-          </svg>`);
-            return L.icon({ iconUrl: 'data:image/svg+xml;utf8,' + svg, iconSize: [size, size], iconAnchor: [size / 2, size], popupAnchor: [0, -size] });
-        }
+    const svg = encodeURIComponent(`
+      <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24'>
+        <path d='M12 2C8 2 6 5 6 8.5 6 13 12 22 12 22s6-9 6-13.5C18 5 16 2 12 2z' fill='${color}' stroke='#ffffff' stroke-width='1'/>
+        <circle cx='12' cy='8.5' r='2.5' fill='#fff'/>
+      </svg>`);
+    return L.icon({ iconUrl: 'data:image/svg+xml;utf8,' + svg, iconSize: [size,size], iconAnchor:[size/2, size], popupAnchor:[0,-size] });
+}
 
-        // Calcula stopDuration y marca estados intermedios en cada punto
-        function calculateStops() {
-            Object.keys(grouped).forEach(imei => {
-                const pts = grouped[imei];
-                if (!pts || pts.length === 0) return;
+// Calcula stopDuration y marca estados intermedios en cada punto
+function calculateStops() {
+    Object.keys(grouped).forEach(imei => {
+        const pts = grouped[imei];
+        if (!pts || pts.length === 0) return;
 
-                // ordenar por timestamp asc si no lo está
-                pts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // ordenar por timestamp asc si no lo está
+        pts.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
 
-                // Recorrer y calcular stopDuration acumulada
-                let lastMovingTimestamp = null;
-                for (let i = 0; i < pts.length; i++) {
-                    const p = pts[i];
-                    // normalizar campos
-                    if (p.latitude !== undefined && p.longitude !== undefined && (p.lat === undefined || p.lng === undefined)) {
-                        p.lat = p.latitude; p.lng = p.longitude;
-                    }
-                    p.speed = (p.speed === undefined || p.speed === null) ? 0 : Number(p.speed);
-                    p.battery = p.battery !== undefined ? Number(p.battery) : null;
+        // Recorrer y calcular stopDuration acumulada
+        let lastMovingTimestamp = null;
+        for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            // normalizar campos
+            if (p.latitude !== undefined && p.longitude !== undefined && (p.lat === undefined || p.lng === undefined)) {
+                p.lat = p.latitude; p.lng = p.longitude;
+            }
+            p.speed = (p.speed === undefined || p.speed === null) ? 0 : Number(p.speed);
+            p.battery = p.battery !== undefined ? Number(p.battery) : null;
 
-                    if (p.speed > SPEED_MOVE_THRESHOLD) {
-                        // se mueve
-                        p.stopDuration = 0;
-                        lastMovingTimestamp = new Date(p.timestamp);
-                    } else {
-                        // detenido -> calcular desde último movimiento (si existe)
-                        if (lastMovingTimestamp) {
-                            const secs = (new Date(p.timestamp) - lastMovingTimestamp) / 1000;
-                            p.stopDuration = Math.max(0, Math.floor(secs)); // segundos desde que dejó de moverse
-                        } else {
-                            // si nunca se movió en los registros previos, podemos calcular dif con primer punto
-                            p.stopDuration = 0;
-                        }
-                    }
+            if (p.speed > SPEED_MOVE_THRESHOLD) {
+                // se mueve
+                p.stopDuration = 0;
+                lastMovingTimestamp = new Date(p.timestamp);
+            } else {
+                // detenido -> calcular desde último movimiento (si existe)
+                if (lastMovingTimestamp) {
+                    const secs = (new Date(p.timestamp) - lastMovingTimestamp) / 1000;
+                    p.stopDuration = Math.max(0, Math.floor(secs)); // segundos desde que dejó de moverse
+                } else {
+                    // si nunca se movió en los registros previos, podemos calcular dif con primer punto
+                    p.stopDuration = 0;
                 }
-            });
-        }
-
-        // Devuelve un string de estado para un punto
-        function getVehicleStatus(p) {
-            // p: point con fields lat,lng,speed,stopDuration,battery
-            const parts = [];
-
-            // Encendido / Apagado
-            // Si speed > 0 o tenemos coordenadas recientes consideramos encendido
-            if (p.speed > 0) parts.push("Encendido");
-            else parts.push("Apagado");
-
-            // En movimiento / Detenido
-            if (p.speed > SPEED_MOVE_THRESHOLD) parts.push("En movimiento");
-            else parts.push("Detenido");
-
-            // Excesiva detención
-            if ((p.stopDuration || 0) >= STOP_LONG_SECONDS) parts.push("Excesiva detención");
-
-            // Exceso de velocidad
-            if (p.speed > SPEED_OVERSPEED) parts.push("Exceso de velocidad");
-
-            // Batería baja (si viene)
-            if (p.battery !== null && p.battery !== undefined && p.battery <= BATTERY_LOW_PERCENT) parts.push("Batería baja");
-
-            return parts.join(" · ");
-        }
-
-        // Decide un estado simple (clave) para iconografía / lista
-        function decideStateKey(p) {
-            // prioridad: off > battery_low > overspeed > moving > stopped
-            if (p.speed === 0 && (!p.battery && p.battery !== 0)) {
-                // sin velocidad y sin info de batería -> posible apagado, pero lo dejamos simple:
-                // We'll treat as 'off' only if speed==0 and timestamp older? For simplicity:
-                // If speed==0 and last report older than X, can be considered off. We'll skip time check here.
             }
-
-            if (p.battery !== null && p.battery !== undefined && p.battery <= BATTERY_LOW_PERCENT) return "battery_low";
-            if (p.speed > SPEED_OVERSPEED) return "overspeed";
-            if (p.speed > SPEED_MOVE_THRESHOLD) return "moving";
-            return "stopped";
         }
+    });
+}
 
-        // Render lista lateral con badge de estado (según último punto)
-        function renderSimList() {
-            const container = document.getElementById("simList");
-            container.innerHTML = "";
-            const imeis = Object.keys(grouped).sort();
-            if (imeis.length === 0) {
-                container.innerHTML = "<div class='small-muted'>No hay dispositivos registrados.</div>";
-                return;
-            }
-            imeis.forEach(imei => {
-                if (!deviceColors[imei]) deviceColors[imei] = hashToColor(imei);
-                const pts = grouped[imei] || [];
-                const last = pts.length ? pts[pts.length - 1] : null;
-                const color = deviceColors[imei];
-                const stateText = last ? getVehicleStatus(last) : "Sin datos";
-                const stateKey = last ? decideStateKey(last) : "stopped";
+// Devuelve un string de estado para un punto
+function getVehicleStatus(p) {
+    // p: point con fields lat,lng,speed,stopDuration,battery
+    const parts = [];
 
-                // color del badge según estadoKey
-                let badgeColor = "secondary";
-                if (stateKey === "moving") badgeColor = "success";
-                else if (stateKey === "stopped") badgeColor = "warning";
-                else if (stateKey === "overspeed") badgeColor = "danger";
-                else if (stateKey === "battery_low") badgeColor = "warning";
-                else if (stateKey === "off") badgeColor = "secondary";
+    // Encendido / Apagado
+    // Si speed > 0 o tenemos coordenadas recientes consideramos encendido
+    if (p.speed > 0) parts.push("Encendido");
+    else parts.push("Apagado");
 
-                const el = document.createElement("div");
-                el.className = "sim-item";
-                el.innerHTML = `
-                <div style="display:flex;align-items:center;flex:1">
-                    <div class="color-dot" style="background:${color}"></div>
-                    <div style="flex:1">
-                        <div class="sim-title">${imei}</div>
-                        <div class="small-muted">${pts.length} puntos · Últ: ${last ? new Date(last.timestamp).toLocaleString() : '—'}</div>
-                    </div>
+    // En movimiento / Detenido
+    if (p.speed > SPEED_MOVE_THRESHOLD) parts.push("En movimiento");
+    else parts.push("Detenido");
+
+    // Excesiva detención
+    if ((p.stopDuration || 0) >= STOP_LONG_SECONDS) parts.push("Excesiva detención");
+
+    // Exceso de velocidad
+    if (p.speed > SPEED_OVERSPEED) parts.push("Exceso de velocidad");
+
+    // Batería baja (si viene)
+    if (p.battery !== null && p.battery !== undefined && p.battery <= BATTERY_LOW_PERCENT) parts.push("Batería baja");
+
+    return parts.join(" · ");
+}
+
+// Decide un estado simple (clave) para iconografía / lista
+function decideStateKey(p) {
+    // prioridad: off > battery_low > overspeed > moving > stopped
+    if (p.speed === 0 && (!p.battery && p.battery !== 0)) {
+        // sin velocidad y sin info de batería -> posible apagado, pero lo dejamos simple:
+        // We'll treat as 'off' only if speed==0 and timestamp older? For simplicity:
+        // If speed==0 and last report older than X, can be considered off. We'll skip time check here.
+    }
+
+    if (p.battery !== null && p.battery !== undefined && p.battery <= BATTERY_LOW_PERCENT) return "battery_low";
+    if (p.speed > SPEED_OVERSPEED) return "overspeed";
+    if (p.speed > SPEED_MOVE_THRESHOLD) return "moving";
+    return "stopped";
+}
+
+// Render lista lateral con badge de estado (según último punto)
+function renderSimList() {
+    const container = document.getElementById("simList");
+    container.innerHTML = "";
+    const imeis = Object.keys(grouped).sort();
+    if (imeis.length === 0) {
+        container.innerHTML = "<div class='small-muted'>No hay dispositivos registrados.</div>";
+        return;
+    }
+    imeis.forEach(imei => {
+        if (!deviceColors[imei]) deviceColors[imei] = hashToColor(imei);
+        const pts = grouped[imei] || [];
+        const last = pts.length ? pts[pts.length - 1] : null;
+        const color = deviceColors[imei];
+        const stateText = last ? getVehicleStatus(last) : "Sin datos";
+        const stateKey = last ? decideStateKey(last) : "stopped";
+
+        // color del badge según estadoKey
+        let badgeColor = "secondary";
+        if (stateKey === "moving") badgeColor = "success";
+        else if (stateKey === "stopped") badgeColor = "warning";
+        else if (stateKey === "overspeed") badgeColor = "danger";
+        else if (stateKey === "battery_low") badgeColor = "warning";
+        else if (stateKey === "off") badgeColor = "secondary";
+
+        const el = document.createElement("div");
+        el.className = "sim-item";
+        el.innerHTML = `
+            <div style="display:flex;align-items:center;flex:1">
+                <div class="color-dot" style="background:${color}"></div>
+                <div style="flex:1">
+                    <div class="sim-title">${imei}</div>
+                    <div class="small-muted">${pts.length} puntos · Últ: ${last ? new Date(last.timestamp).toLocaleString() : '—'}</div>
                 </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-                    <div class="status-badge badge bg-${badgeColor}">${stateText.split(' · ')[0]}</div>
-                    <div style="font-size:0.75rem;color:#6c757d">${last && last.battery !== undefined && last.battery !== null ? last.battery + '%' : ''}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                <div class="status-badge badge bg-${badgeColor}">${stateText.split(' · ')[0]}</div>
+                <div style="font-size:0.75rem;color:#6c757d">${last && last.battery !== undefined && last.battery !== null ? last.battery +'%':''}</div>
+            </div>
+        `;
+        el.onclick = (ev) => {
+            if (ev.target.tagName.toLowerCase() === 'input') return;
+            selectDevice(imei);
+        };
+        container.appendChild(el);
+    });
+}
+
+// Render markers + polylines incluyendo estado en popup
+function renderAllDevices() {
+    markerCluster.clearLayers();
+    Object.values(deviceLayers).forEach(v => {
+        if (v.polyline) v.polyline.remove();
+        if (v.lastMarker) try { map.removeLayer(v.lastMarker); } catch(e){}
+    });
+    deviceLayers = {};
+
+    Object.keys(grouped).forEach(imei => {
+        const pts = grouped[imei].filter(p => p.lat !== undefined && p.lng !== undefined);
+        if (pts.length === 0) return;
+        const color = deviceColors[imei] || hashToColor(imei);
+
+        // crear markers individuales
+        const markers = pts.map(p => {
+            const stateKey = decideStateKey(p);
+            const icon = createStateIcon(stateKey, color);
+            const popupHtml = `
+                <div style="min-width:180px">
+                  <b>IMEI:</b> ${imei}<br>
+                  <b>Fecha:</b> ${new Date(p.timestamp).toLocaleString()}<br>
+                  <b>Velocidad:</b> ${p.speed ? p.speed.toFixed(1) + ' km/h' : '—'}<br>
+                  <b>Estado:</b> <span style="font-weight:600">${getVehicleStatus(p)}</span><br>
+                  ${p.battery !== null && p.battery !== undefined ? `<b>Batería:</b> ${p.battery}%<br>` : ''}
                 </div>
             `;
-                el.onclick = (ev) => {
-                    if (ev.target.tagName.toLowerCase() === 'input') return;
-                    selectDevice(imei);
-                };
-                container.appendChild(el);
-            });
-        }
+            const m = L.marker([p.lat, p.lng], { icon }).bindPopup(popupHtml);
+            markerCluster.addLayer(m);
+            return m;
+        });
 
-        // Render markers + polylines incluyendo estado en popup
-        function renderAllDevices() {
-            markerCluster.clearLayers();
-            Object.values(deviceLayers).forEach(v => {
-                if (v.polyline) v.polyline.remove();
-                if (v.lastMarker) try { map.removeLayer(v.lastMarker); } catch (e) { }
-            });
-            deviceLayers = {};
+        // polyline (ruta)
+        const latlngs = pts.map(p=> [p.lat, p.lng]);
+        const poly = L.polyline(latlngs, { color: color, weight: 4, opacity: 0.85 }).addTo(map);
 
-            Object.keys(grouped).forEach(imei => {
-                const pts = grouped[imei].filter(p => p.lat !== undefined && p.lng !== undefined);
-                if (pts.length === 0) return;
-                const color = deviceColors[imei] || hashToColor(imei);
+        // last marker destacado
+        const last = pts[pts.length - 1];
+        const lastState = decideStateKey(last);
+        const lastIcon = createStateIcon(lastState, color, 46);
+        const lastMarker = L.marker([last.lat, last.lng], { icon: lastIcon })
+            .bindPopup(`<b>${imei}</b><br>Última: ${new Date(last.timestamp).toLocaleString()}<br>Estado: ${getVehicleStatus(last)}`);
 
-                // crear markers individuales
-                const markers = pts.map(p => {
-                    const stateKey = decideStateKey(p);
-                    const icon = createStateIcon(stateKey, color);
-                    const popupHtml = `
-                    <div style="min-width:180px">
-                      <b>IMEI:</b> ${imei}<br>
-                      <b>Fecha:</b> ${new Date(p.timestamp).toLocaleString()}<br>
-                      <b>Velocidad:</b> ${p.speed ? p.speed.toFixed(1) + ' km/h' : '—'}<br>
-                      <b>Estado:</b> <span style="font-weight:600">${getVehicleStatus(p)}</span><br>
-                      ${p.battery !== null && p.battery !== undefined ? `<b>Batería:</b> ${p.battery}%<br>` : ''}
-                    </div>
-                `;
-                    const m = L.marker([p.lat, p.lng], { icon }).bindPopup(popupHtml);
-                    markerCluster.addLayer(m);
-                    return m;
-                });
+        lastMarker.addTo(map);
 
-                // polyline (ruta)
-                const latlngs = pts.map(p => [p.lat, p.lng]);
-                const poly = L.polyline(latlngs, { color: color, weight: 4, opacity: 0.85 }).addTo(map);
+        deviceLayers[imei] = { markers, polyline: poly, lastMarker };
+    });
 
-                // last marker destacado
-                const last = pts[pts.length - 1];
-                const lastState = decideStateKey(last);
-                const lastIcon = createStateIcon(lastState, color, 46);
-                const lastMarker = L.marker([last.lat, last.lng], { icon: lastIcon })
-                    .bindPopup(`<b>${imei}</b><br>Última: ${new Date(last.timestamp).toLocaleString()}<br>Estado: ${getVehicleStatus(last)}`);
+    // ajustar bounds a todos los últimos si hay
+    const allLast = Object.values(deviceLayers).map(d=>d.lastMarker).filter(Boolean);
+    if (allLast.length) {
+        const group = L.featureGroup(allLast);
+        map.fitBounds(group.getBounds().pad(0.25));
+    }
+}
 
-                lastMarker.addTo(map);
+// selección de dispositivo
+function selectDevice(imei) {
+    const d = deviceLayers[imei];
+    if (!d || !d.lastMarker) return;
+    map.setView(d.lastMarker.getLatLng(), 14);
+    d.lastMarker.openPopup();
+}
 
-                deviceLayers[imei] = { markers, polyline: poly, lastMarker };
-            });
+// obtener datos y procesar
+async function loadAllData() {
+    try {
+        const res = await fetch(API_ALL);
+        if (!res.ok) throw new Error('No se pudo cargar datos');
+        rawData = await res.json();
 
-            // ajustar bounds a todos los últimos si hay
-            const allLast = Object.values(deviceLayers).map(d => d.lastMarker).filter(Boolean);
-            if (allLast.length) {
-                const group = L.featureGroup(allLast);
-                map.fitBounds(group.getBounds().pad(0.25));
+        // normalizar timestamps y lat/lng
+        rawData.forEach(r => {
+            if (!r.timestamp) r.timestamp = new Date().toISOString();
+            if (r.latitude !== undefined && r.longitude !== undefined && (r.lat === undefined || r.lng === undefined)) {
+                r.lat = r.latitude; r.lng = r.longitude;
             }
-        }
+            // asegurarse que speed y battery sean números
+            r.speed = r.speed !== undefined && r.speed !== null ? Number(r.speed) : 0;
+            r.battery = (r.battery !== undefined && r.battery !== null) ? Number(r.battery) : null;
+        });
 
-        // selección de dispositivo
-        function selectDevice(imei) {
-            const d = deviceLayers[imei];
-            if (!d || !d.lastMarker) return;
-            map.setView(d.lastMarker.getLatLng(), 14);
-            d.lastMarker.openPopup();
-        }
+        // agrupar por imei
+        grouped = {};
+        rawData.forEach(r => {
+            if (!r.imei) return;
+            if (!grouped[r.imei]) grouped[r.imei] = [];
+            grouped[r.imei].push(r);
+        });
 
-        // obtener datos y procesar
-        async function loadAllData() {
-            try {
-                const res = await fetch(API_ALL);
-                if (!res.ok) throw new Error('No se pudo cargar datos');
-                rawData = await res.json();
+        // calcular detenciones
+        calculateStops();
 
-                // normalizar timestamps y lat/lng
-                rawData.forEach(r => {
-                    if (!r.timestamp) r.timestamp = new Date().toISOString();
-                    if (r.latitude !== undefined && r.longitude !== undefined && (r.lat === undefined || r.lng === undefined)) {
-                        r.lat = r.latitude; r.lng = r.longitude;
-                    }
-                    // asegurarse que speed y battery sean números
-                    r.speed = r.speed !== undefined && r.speed !== null ? Number(r.speed) : 0;
-                    r.battery = (r.battery !== undefined && r.battery !== null) ? Number(r.battery) : null;
-                });
+        // render
+        renderSimList();
+        renderAllDevices();
+    } catch (err) {
+        console.error(err);
+        document.getElementById('simList').innerHTML = '<div class="small-muted">Error cargando datos.</div>';
+    }
+}
 
-                // agrupar por imei
-                grouped = {};
-                rawData.forEach(r => {
-                    if (!r.imei) return;
-                    if (!grouped[r.imei]) grouped[r.imei] = [];
-                    grouped[r.imei].push(r);
-                });
+// controles refresh
+document.getElementById("btnRefresh").onclick = loadAllData;
+document.getElementById("refreshSelect").onchange = function(){
+    const val = parseInt(this.value,10);
+    if (window._refreshTimer) { clearInterval(window._refreshTimer); window._refreshTimer = null; }
+    if (val > 0) window._refreshTimer = setInterval(loadAllData, val * 1000);
+};
 
-                // calcular detenciones
-                calculateStops();
+// mostrar todos
+document.getElementById("btnShowAll").onclick = function(){
+    // activar checkboxes visuales (si tuvieras) - aquí simplemente re-render
+    renderAllDevices();
+};
 
-                // render
-                renderSimList();
-                renderAllDevices();
-            } catch (err) {
-                console.error(err);
-                document.getElementById('simList').innerHTML = '<div class="small-muted">Error cargando datos.</div>';
-            }
-        }
+// carga inicial y auto-refresh 10s por defecto
+loadAllData();
+window._refreshTimer = setInterval(loadAllData, 10000);
 
-        // controles refresh
-        document.getElementById("btnRefresh").onclick = loadAllData;
-        document.getElementById("refreshSelect").onchange = function () {
-            const val = parseInt(this.value, 10);
-            if (window._refreshTimer) { clearInterval(window._refreshTimer); window._refreshTimer = null; }
-            if (val > 0) window._refreshTimer = setInterval(loadAllData, val * 1000);
-        };
-
-        // mostrar todos
-        document.getElementById("btnShowAll").onclick = function () {
-            // activar checkboxes visuales (si tuvieras) - aquí simplemente re-render
-            renderAllDevices();
-        };
-
-        // carga inicial y auto-refresh 10s por defecto
-        loadAllData();
-        window._refreshTimer = setInterval(loadAllData, 10000);
-
-    </script>
+</script>
 </body>
 </html>
