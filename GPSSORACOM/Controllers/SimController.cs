@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using GPSSORACOM.Models;
 using GPSSORACOM.Services;
+using System.Linq;
 
 namespace GPSSORACOM.Controllers
 {
@@ -15,19 +16,38 @@ namespace GPSSORACOM.Controllers
             _storage = storage;
         }
 
+        // Actualiza un "SIM" → en realidad actualiza la posición GPS del IMEI
         [HttpPost("update")]
-        public IActionResult UpdateSim([FromBody] SimInfo sim)
+        public IActionResult UpdateSim([FromBody] GpsModel gps)
         {
-            sim.LastUpdate = DateTime.Now;
-            _storage.SaveSim(sim);
-            return Ok(new { message = "SIM actualizado correctamente." });
+            if (gps == null || string.IsNullOrEmpty(gps.Imei))
+                return BadRequest(new { message = "Datos inválidos" });
+
+            gps.Timestamp = DateTime.UtcNow;
+            _storage.SaveGps(gps);
+
+            return Ok(new { message = "SIM/GPS actualizado correctamente." });
         }
 
+        // Obtener todos los "SIMs" → devuelve todas las posiciones GPS guardadas
         [HttpGet("all")]
         public IActionResult GetAllSims()
         {
-            var list = _storage.GetAllSims();
+            var list = _storage.GetAllGps();
             return Ok(list);
+        }
+
+        // Consultar por IMEI específico
+        [HttpGet("{imei}")]
+        public IActionResult GetSimByImei(string imei)
+        {
+            var list = _storage.GetAllGps();
+            var result = list.Where(g => g.Imei == imei).ToList();
+
+            if (!result.Any())
+                return NotFound(new { message = "IMEI no encontrado" });
+
+            return Ok(result);
         }
     }
 }
