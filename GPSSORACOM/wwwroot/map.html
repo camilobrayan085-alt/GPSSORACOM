@@ -1,98 +1,546 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa en Tiempo Real</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mapa Profesional — GPS Soracom</title>
 
+    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Leaflet MarkerCluster (opcional para muchos marcadores) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster-src.js"></script>
+
     <style>
+        body {
+            background: #f4f7fb;
+            font-family: "Inter", "Segoe UI", Arial, sans-serif;
+        }
+
+        .topbar {
+            background: #fff;
+            padding: 12px 18px;
+            border-bottom: 1px solid #e9ecef;
+            box-shadow: 0 2px 8px rgba(10,20,40,0.03);
+        }
+
+        .panel {
+            background: #fff;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 6px 24px rgba(10,20,40,0.06);
+        }
+
         #map {
-            height: 500px;
-            border-radius: 12px;
+            height: calc(100vh - 140px);
+            border-radius: 10px;
+        }
+
+        .sidebar {
+            height: calc(100vh - 140px);
+            overflow: auto;
+        }
+
+        .sim-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px dashed #eee;
+            cursor: pointer;
+        }
+
+            .sim-item:hover {
+                background: #f8f9fb;
+            }
+
+        .color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .controls {
+            gap: 8px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .muted {
+            color: #6c757d;
+        }
+
+        .small-muted {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .playback-bar {
+            width: 100%;
+        }
+
+        .legend {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
         }
     </style>
 </head>
 <body>
 
-    <div class="container py-4">
-        <h2 class="text-center mb-4">📍 Localización de SIM</h2>
-
-        <div class="input-group mb-3">
-            <input type="text" id="simId" class="form-control" placeholder="Ingresa un SIM ID...">
-            <button class="btn btn-primary" onclick="buscarUbicacion()">Buscar</button>
+    <!-- Topbar -->
+    <div class="topbar d-flex align-items-center justify-content-between">
+        <div>
+            <h4 class="mb-0">📍 Panel Avanzado — GPS Soracom</h4>
+            <div class="small-muted">Mapa profesional · rutas, historial, reproducción y monitoreo en tiempo real</div>
         </div>
 
-        <div id="map"></div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="small-muted">Auto-refresh:</div>
+            <select id="refreshSelect" class="form-select form-select-sm" style="width:110px;">
+                <option value="0">Off</option>
+                <option value="5">5s</option>
+                <option value="10" selected>10s</option>
+                <option value="30">30s</option>
+                <option value="60">60s</option>
+            </select>
+            <button id="btnRefresh" class="btn btn-outline-primary btn-sm">Refrescar ahora</button>
+        </div>
+    </div>
 
-        <p id="info" class="text-center mt-3 text-muted"></p>
+    <!-- Main -->
+    <div class="container-fluid py-3">
+        <div class="row g-3">
+            <!-- Left sidebar -->
+            <div class="col-lg-3">
+                <div class="panel sidebar p-3">
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Dispositivos (IMEI)</h6>
+                        <button id="btnShowAll" class="btn btn-sm btn-outline-secondary">Mostrar todos</button>
+                    </div>
+
+                    <div id="simList" class="mb-2">
+                        <div class="small-muted">Cargando dispositivos...</div>
+                    </div>
+
+                    <hr />
+
+                    <div class="mb-2">
+                        <label class="form-label small-muted mb-1">Filtrar por fecha</label>
+                        <div class="d-flex gap-2">
+                            <input id="dateFrom" type="date" class="form-control form-control-sm">
+                            <input id="dateTo" type="date" class="form-control form-control-sm">
+                        </div>
+                        <div class="small-muted mt-1">Selecciona un día o rango y presiona <b>Aplicar</b>.</div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button id="btnApplyDate" class="btn btn-primary btn-sm">Aplicar</button>
+                            <button id="btnClearDate" class="btn btn-outline-secondary btn-sm">Limpiar</button>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="mb-2">
+                        <h6 class="mb-1">Reproducción / Historial</h6>
+                        <div class="small-muted mb-2">Selecciona un dispositivo y presiona reproducir para ver el recorrido.</div>
+
+                        <div class="d-flex gap-2 mb-2">
+                            <select id="playSelect" class="form-select form-select-sm"></select>
+                            <button id="btnPlay" class="btn btn-success btn-sm">Play ▶</button>
+                            <button id="btnPause" class="btn btn-warning btn-sm" disabled>Pause ⏸</button>
+                            <button id="btnStopPlay" class="btn btn-outline-danger btn-sm" disabled>Stop ■</button>
+                        </div>
+
+                        <input id="timeSlider" type="range" min="0" max="100" value="0" class="form-range playback-bar" disabled>
+                        <div class="d-flex justify-content-between small-muted mt-1"><span id="playTime">00:00</span><span id="playEnd">00:00</span></div>
+                    </div>
+
+                    <hr />
+
+                    <div class="small-muted legend">
+                        <div><span class="color-dot" style="background:#2b8be9"></span> Activo</div>
+                        <div><span class="color-dot" style="background:#f03b20"></span> Inactivo</div>
+                        <div><span class="color-dot" style="background:#4bbf73"></span> Vehículo</div>
+                    </div>
+
+                    <div class="mt-3 small-muted">Tips: Haz clic en un IMEI para centrarlo. Usa el filtro por fecha para ver rutas por día.</div>
+
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div class="col-lg-9">
+                <div id="map" class="panel"></div>
+            </div>
+        </div>
     </div>
 
     <script>
-let map;
-let markers = [];
+        /*
+          map.html avanzado
+          - obtiene datos de /api/gps/all
+          - agrupa por imei, asigna color fijo por imei (hash)
+          - muestra lista en sidebar, toggles y "mostrar todos"
+          - dibuja markers y polylines (ruta)
+          - auto-refresh configurable
+          - filtro por fecha (from/to)
+          - reproducción (play/pause/stop) con slider
+        */
 
-// Función para limpiar marcadores
-function limpiarMarcadores() {
-    markers.forEach(m => map.removeLayer(m));
-    markers = [];
-}
+        // Config
+        const API_ALL = "/api/gps/all";
+        const API_IMEI = "/api/gps/"; // + imei
+        let autoRefreshInterval = null;
+        let refreshTimer = null;
 
-async function buscarUbicacion() {
-    const simId = document.getElementById("simId").value.trim();
-    if (!simId) {
-        alert("Ingresa un SIM ID");
-        return;
-    }
+        // Leaflet map + marker cluster
+        const map = L.map("map", { zoomControl: true }).setView([19.4326, -99.1332], 5);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+        const markerCluster = L.markerClusterGroup();
+        map.addLayer(markerCluster);
 
-    try {
-        const resp = await fetch(`/api/gps/${simId}`);
-        if (!resp.ok) {
-            document.getElementById("info").innerText = "❌ No se encontró información para esa SIM.";
-            return;
+        // State
+        let rawData = []; // all gps records
+        let grouped = {}; // imei -> array of records
+        let deviceColors = {}; // imei -> color
+        let deviceLayers = {}; // imei -> { markers:[], polyline: L.polyline(), lastMarker }
+        let selectedImei = null;
+        let playing = false;
+        let playAnimation = null;
+
+        // Helpers
+        function hashToColor(str) {
+            // produce consistent color from string
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+            return "#" + "00000".substring(0, 6 - c.length) + c;
         }
 
-        const data = await resp.json();
-
-        if (!data || data.length === 0) {
-            document.getElementById("info").innerText = "❌ No hay registros de GPS para esta SIM.";
-            return;
+        function createSvgIcon(color, size = 30) {
+            // returns L.icon with SVG dataURL for crisp colored marker
+            const svg = encodeURIComponent(`
+        <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24'>
+          <path d='M12 2C8 2 6 5 6 8.5 6 13 12 22 12 22s6-9 6-13.5C18 5 16 2 12 2z' fill='${color}' stroke='#fff' stroke-width='1'/>
+          <circle cx='12' cy='8.5' r='2.5' fill='#fff'/>
+        </svg>`);
+            return L.icon({
+                iconUrl: 'data:image/svg+xml;utf8,' + svg,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+                popupAnchor: [0, -36]
+            });
         }
 
-        // Inicializar mapa si no existe
-        if (!map) {
-            const first = data[0];
-            map = L.map("map").setView([first.lat, first.lng], 14);
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-        }
+        // Load data from server and process
+        async function loadAllData() {
+            try {
+                const res = await fetch(API_ALL);
+                if (!res.ok) throw new Error("No se pudo obtener datos");
+                rawData = await res.json();
 
-        limpiarMarcadores();
+                // ensure timestamps are Date
+                rawData.forEach(r => {
+                    if (!r.timestamp) r.timestamp = new Date().toISOString();
+                    // normalize field names: accept lat/lng or latitude/longitude
+                    if (r.latitude !== undefined && r.longitude !== undefined && (r.lat === undefined || r.lng === undefined)) {
+                        r.lat = r.latitude; r.lng = r.longitude;
+                    }
+                    r.timestamp = (typeof r.timestamp === 'string') ? r.timestamp : new Date(r.timestamp).toISOString();
+                });
 
-        data.forEach(g => {
-            if (g.lat !== undefined && g.lng !== undefined) {
-                const m = L.marker([g.lat, g.lng])
-                    .addTo(map)
-                    .bindPopup(`SIM: ${g.imei}<br>Última actualización: ${new Date(g.timestamp).toLocaleString()}`);
-                markers.push(m);
+                groupByImei();
+                renderSimList();
+                renderAllDevices();
+                populatePlaySelect();
+            } catch (err) {
+                console.error(err);
+                document.getElementById("simList").innerHTML = "<div class='small-muted'>Error cargando datos.</div>";
             }
+        }
+
+        function groupByImei() {
+            grouped = {};
+            rawData.forEach(r => {
+                if (!r.imei) return;
+                if (!grouped[r.imei]) grouped[r.imei] = [];
+                grouped[r.imei].push(r);
+            });
+            // sort each group by timestamp asc
+            Object.keys(grouped).forEach(k => grouped[k].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
+        }
+
+        function renderSimList() {
+            const container = document.getElementById("simList");
+            container.innerHTML = "";
+            const imeis = Object.keys(grouped).sort();
+            if (imeis.length === 0) {
+                container.innerHTML = "<div class='small-muted'>No hay dispositivos registrados.</div>";
+                return;
+            }
+            imeis.forEach(imei => {
+                if (!deviceColors[imei]) deviceColors[imei] = hashToColor(imei);
+                const color = deviceColors[imei];
+                const el = document.createElement("div");
+                el.className = "sim-item";
+                el.innerHTML = `
+          <div style="display:flex;align-items:center;flex:1">
+            <div class="color-dot" style="background:${color}"></div>
+            <div style="flex:1">
+              <div class="sim-title">${imei}</div>
+              <div class="small-muted">${grouped[imei].length} puntos · Últ: ${new Date(grouped[imei][grouped[imei].length - 1].timestamp).toLocaleString()}</div>
+            </div>
+          </div>
+          <div>
+            <input type="checkbox" checked onchange="toggleDeviceLayer(event,'${imei}')" />
+          </div>
+        `;
+                el.onclick = (ev) => {
+                    // prevent triggering when clicking checkbox
+                    if (ev.target.tagName.toLowerCase() === 'input') return;
+                    selectDevice(imei);
+                };
+                container.appendChild(el);
+            });
+        }
+
+        // Toggle visibility of a device
+        function toggleDeviceLayer(ev, imei) {
+            const checked = ev.target.checked;
+            if (!deviceLayers[imei]) return;
+            if (checked) {
+                if (deviceLayers[imei].markers) deviceLayers[imei].markers.forEach(m => markerCluster.addLayer(m));
+                if (deviceLayers[imei].polyline) deviceLayers[imei].polyline.addTo(map);
+            } else {
+                if (deviceLayers[imei].markers) deviceLayers[imei].markers.forEach(m => markerCluster.removeLayer(m));
+                if (deviceLayers[imei].polyline) deviceLayers[imei].polyline.remove();
+            }
+        }
+
+        // Render (or re-render) all devices: markers + polylines
+        function renderAllDevices() {
+            // clear previous
+            markerCluster.clearLayers();
+            Object.values(deviceLayers).forEach(v => {
+                if (v.polyline) v.polyline.remove();
+                if (v.lastMarker) { try { map.removeLayer(v.lastMarker); } catch (e) { } }
+            });
+            deviceLayers = {};
+
+            Object.keys(grouped).forEach(imei => {
+                const pts = grouped[imei].filter(p => p.lat !== undefined && p.lng !== undefined);
+                if (pts.length === 0) return;
+                const color = deviceColors[imei] || hashToColor(imei);
+                // markers
+                const markers = pts.map(p => {
+                    const icon = createSvgIcon(color);
+                    const m = L.marker([p.lat, p.lng], { icon })
+                        .bindPopup(`<b>${imei}</b><br>${new Date(p.timestamp).toLocaleString()}<br>Lat: ${p.lat.toFixed(6)}, Lng: ${p.lng.toFixed(6)}`);
+                    markerCluster.addLayer(m);
+                    return m;
+                });
+
+                // polyline (route)
+                const latlngs = pts.map(p => [p.lat, p.lng]);
+                const poly = L.polyline(latlngs, { color: color, weight: 4, opacity: 0.85 }).addTo(map);
+
+                // last position marker (bigger)
+                const last = pts[pts.length - 1];
+                const lastIcon = createSvgIcon(color, 44);
+                const lastMarker = L.marker([last.lat, last.lng], { icon: lastIcon })
+                    .bindPopup(`<b>${imei}</b><br>Última: ${new Date(last.timestamp).toLocaleString()}`);
+
+                lastMarker.addTo(map);
+
+                deviceLayers[imei] = { markers, polyline: poly, lastMarker };
+            });
+
+            // fit bounds to all last markers (if any)
+            const allLast = Object.values(deviceLayers).map(d => d.lastMarker).filter(Boolean);
+            if (allLast.length) {
+                const group = L.featureGroup(allLast);
+                map.fitBounds(group.getBounds().pad(0.25));
+            }
+        }
+
+        // select device from list: center and open last popup
+        function selectDevice(imei) {
+            selectedImei = imei;
+            const d = deviceLayers[imei];
+            if (!d || !d.lastMarker) return;
+            map.setView(d.lastMarker.getLatLng(), 14);
+            d.lastMarker.openPopup();
+            // populate playback select
+            document.getElementById("playSelect").value = imei;
+        }
+
+        // show all devices (button)
+        function showAllDevices() {
+            // ensure all checkboxes are checked
+            document.querySelectorAll("#simList input[type=checkbox]").forEach(cb => cb.checked = true);
+            renderAllDevices();
+            document.getElementById("info").innerText = `Mostrando todos (${Object.keys(grouped).length})`;
+        }
+        document.getElementById("btnShowAll").onclick = showAllDevices;
+
+        // date filter
+        function applyDateFilter() {
+            const from = document.getElementById("dateFrom").value;
+            const to = document.getElementById("dateTo").value;
+            // if no filters, reload original
+            if (!from && !to) {
+                loadAllData(); // reload original
+                return;
+            }
+            const fromTs = from ? new Date(from + "T00:00:00").getTime() : -Infinity;
+            const toTs = to ? new Date(to + "T23:59:59").getTime() : Infinity;
+
+            // filter rawData into filteredData
+            const filtered = rawData.filter(r => {
+                const t = new Date(r.timestamp).getTime();
+                return t >= fromTs && t <= toTs;
+            });
+            // override grouped temporarily
+            rawData = filtered;
+            groupByImei();
+            renderSimList();
+            renderAllDevices();
+        }
+        document.getElementById("btnApplyDate").onclick = applyDateFilter;
+        document.getElementById("btnClearDate").onclick = async () => { await loadAllData(); document.getElementById("dateFrom").value = ''; document.getElementById("dateTo").value = ''; };
+
+        // Playback: populate select
+        function populatePlaySelect() {
+            const sel = document.getElementById("playSelect");
+            sel.innerHTML = "<option value=''>-- Selecciona --</option>";
+            Object.keys(grouped).forEach(k => {
+                const opt = document.createElement("option");
+                opt.value = k; opt.text = k;
+                sel.appendChild(opt);
+            });
+        }
+
+        // Playback animation (moves a marker along points)
+        let playMarker = null;
+        let playIdx = 0;
+        let playPts = [];
+        let playSpeed = 1000; // ms per segment (can be made adjustable)
+
+        function startPlaybackFor(imei) {
+            if (!imei || !grouped[imei] || grouped[imei].length < 2) {
+                alert("Selecciona un dispositivo con al menos 2 puntos.");
+                return;
+            }
+            // prepare points
+            playPts = grouped[imei].filter(p => p.lat !== undefined && p.lng !== undefined);
+            if (playPts.length < 2) { alert("No hay suficientes puntos para reproducir."); return; }
+            // cleanup
+            if (playMarker) { try { map.removeLayer(playMarker); } catch (e) { } playMarker = null; }
+            // start at first
+            playIdx = 0;
+            const color = deviceColors[imei] || hashToColor(imei);
+            playMarker = L.marker([playPts[0].lat, playPts[0].lng], { icon: createSvgIcon(color, 44) }).addTo(map);
+            map.setView([playPts[0].lat, playPts[0].lng], 14);
+            document.getElementById("timeSlider").disabled = false;
+            document.getElementById("timeSlider").max = playPts.length - 1;
+            document.getElementById("timeSlider").value = 0;
+            document.getElementById("playEnd").innerText = new Date(playPts[playPts.length - 1].timestamp).toLocaleString();
+            playing = true;
+            document.getElementById("btnPlay").disabled = true;
+            document.getElementById("btnPause").disabled = false;
+            document.getElementById("btnStopPlay").disabled = false;
+            animatePlay();
+        }
+
+        function animatePlay() {
+            if (!playing) return;
+            if (playIdx >= playPts.length - 1) { // finished
+                playing = false;
+                document.getElementById("btnPlay").disabled = false;
+                document.getElementById("btnPause").disabled = true;
+                return;
+            }
+            const from = playPts[playIdx];
+            const to = playPts[++playIdx];
+            // move marker to 'to' (linear) — simple step
+            playMarker.setLatLng([to.lat, to.lng]);
+            document.getElementById("timeSlider").value = playIdx;
+            document.getElementById("playTime").innerText = new Date(to.timestamp).toLocaleString();
+            // center smoothly
+            map.panTo([to.lat, to.lng], { animate: true, duration: 0.7 });
+            // schedule next
+            playAnimation = setTimeout(animatePlay, playSpeed);
+        }
+
+        document.getElementById("btnPlay").onclick = () => {
+            const imei = document.getElementById("playSelect").value;
+            if (!imei) { alert("Selecciona un dispositivo para reproducir."); return; }
+            startPlaybackFor(imei);
+        };
+        document.getElementById("btnPause").onclick = () => {
+            playing = false;
+            clearTimeout(playAnimation);
+            document.getElementById("btnPlay").disabled = false;
+            document.getElementById("btnPause").disabled = true;
+        };
+        document.getElementById("btnStopPlay").onclick = () => {
+            playing = false;
+            clearTimeout(playAnimation);
+            if (playMarker) { try { map.removeLayer(playMarker); } catch (e) { } playMarker = null; }
+            document.getElementById("btnPause").disabled = true;
+            document.getElementById("btnStopPlay").disabled = true;
+            document.getElementById("btnPlay").disabled = false;
+            document.getElementById("timeSlider").disabled = true;
+            document.getElementById("timeSlider").value = 0;
+        };
+
+        // slider manual control
+        document.getElementById("timeSlider").addEventListener("input", function () {
+            const idx = parseInt(this.value);
+            if (!playPts || playPts.length === 0) return;
+            if (idx < 0 || idx >= playPts.length) return;
+            const p = playPts[idx];
+            if (!playMarker) {
+                const color = hashToColor(document.getElementById("playSelect").value || "x");
+                playMarker = L.marker([p.lat, p.lng], { icon: createSvgIcon(color, 44) }).addTo(map);
+            } else {
+                playMarker.setLatLng([p.lat, p.lng]);
+            }
+            map.panTo([p.lat, p.lng]);
+            document.getElementById("playTime").innerText = new Date(p.timestamp).toLocaleString();
         });
 
-        const last = data[data.length - 1];
-        map.setView([last.lat, last.lng], 14);
-        document.getElementById("info").innerText =
-            `Última actualización: ${new Date(last.timestamp).toLocaleString()}`;
+        // Refresh controls
+        document.getElementById("btnRefresh").onclick = loadAllData;
+        document.getElementById("refreshSelect").onchange = function () {
+            const val = parseInt(this.value, 10);
+            if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+            if (val > 0) refreshTimer = setInterval(loadAllData, val * 1000);
+        };
 
-    } catch (err) {
-        console.error(err);
-        alert("Error consultando la API");
-    }
-}
+        // show all button
+        document.getElementById("btnShowAll").onclick = showAllDevices;
+
+        // toggle device layer helper exposed globally (used by checkbox inline)
+        window.toggleDeviceLayer = toggleDeviceLayer;
+
+        // initial load
+        loadAllData();
+
+        // auto refresh start (10s default)
+        refreshTimer = setInterval(loadAllData, 10000);
+
     </script>
-
 </body>
 </html>
